@@ -14,31 +14,25 @@ import (
 )
 
 type GoogleFinanceClient struct {
-	Scheme     string
-	Host       string
-	Path       string
+	Config     ClientConfig
 	DataStream chan *common.Datum
 }
 
-func NewGoogleFinanceClient(dataStream chan *common.Datum) *GoogleFinanceClient {
+func NewGoogleFinanceClient(dataStream chan *common.Datum) Client {
 	// should be read in from config files
-	scheme := "https"
-	host := "www.google.com"
-	path := "finance"
+	clientConfig := loadConfigFromFile("googlefinance")
 	c := &GoogleFinanceClient{
-		Scheme:     scheme,
-		Host:       host,
-		Path:       path,
+		Config:     clientConfig,
 		DataStream: dataStream,
 	}
 	return c
 }
 
-func (T *GoogleFinanceClient) ExecuteQuery(symbol string) error {
+func (T *GoogleFinanceClient) ExecuteQuery(symbol string) (*common.Datum, error) {
 	u := &url.URL{
-		Scheme: T.Scheme,
-		Host:   T.Host,
-		Path:   T.Path,
+		Scheme: T.Config.Scheme,
+		Host:   T.Config.Host,
+		Path:   T.Config.Path,
 	}
 	q := u.Query()
 	q.Set("q", symbol)
@@ -46,17 +40,16 @@ func (T *GoogleFinanceClient) ExecuteQuery(symbol string) error {
 	resp, err := http.Get(u.String())
 	if err != nil {
 		log.Printf("%+v\n", err)
-		return err
+		return nil, err
 	}
-	datum, err := T.ExtractData(resp)
+	datum, err := T.ExtractData(symbol, resp)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	T.DataStream <- datum
-	return nil
+	return datum, nil
 }
 
-func (T *GoogleFinanceClient) ExtractData(resp *http.Response) (*common.Datum, error) {
+func (T *GoogleFinanceClient) ExtractData(symbol string, resp *http.Response) (*common.Datum, error) {
 	timestamp, err := time.Parse(time.RFC1123, resp.Header.Get("Date"))
 	if err != nil {
 		log.Printf("error: could not parse http header date (%+v)\n", err)
@@ -73,7 +66,7 @@ func (T *GoogleFinanceClient) ExtractData(resp *http.Response) (*common.Datum, e
 		return nil, err
 	}
 	datum := &common.Datum{
-		Symbol: "NVDA",
+		Symbol: symbol,
 		Price:  price,
 		Time:   timestamp.Unix(),
 	}
