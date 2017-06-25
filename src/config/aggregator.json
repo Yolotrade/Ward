@@ -1,0 +1,8 @@
+{
+  "stocks": [
+    "NVDA"
+  ],
+  "clients": [
+    "yahoofinance"
+  ]
+}
