@@ -12,13 +12,12 @@ import (
 const configPath = "./src/config/clients/"
 
 var ClientConstructor = map[string]func(chan *common.Datum) Client{
-	"googlefinance": NewGoogleFinanceClient,
-	"yahoofinance":  NewYahooFinanceClient,
+	"yahoofinance": NewYahooFinanceClient,
 }
 
 type Client interface {
-	ExecuteQuery(symbol string) (*common.Datum, error)
-	ExtractData(symbol string, resp *http.Response) (*common.Datum, error)
+	Connect(symbol string) error
+	ExtractData(symbol string, resp *http.Response) error
 }
 
 type ClientConfig struct {

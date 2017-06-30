@@ -2,11 +2,13 @@ package client
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
+	"strings"
+	"time"
 
 	"../common"
 )
@@ -27,6 +29,46 @@ func NewYahooFinanceClient(dataStream chan *common.Datum) Client {
 	return c
 }
 
+func (T *YahooFinanceClient) Connect(symbol string) error {
+	req, err := T.createQuery(symbol)
+	if err != nil {
+		panic(err.Error())
+	}
+	resp, err := T.Client.Do(req)
+	if err != nil {
+		log.Printf("%+v\n", err)
+		return err
+	}
+
+	return T.ExtractData(symbol, resp)
+}
+
+type YahooFinanceResponse struct {
+	Price string `json:"l10"`
+}
+
+func (T *YahooFinanceClient) ExtractData(symbol string, resp *http.Response) error {
+	reader := bufio.NewReader(resp.Body)
+	regex := regexp.MustCompile(`yfs_.*?\((?P<json>.*?)\)`)
+	for {
+		tok, err := reader.ReadBytes('>')
+		if err != nil {
+			log.Printf("error: %+v", err)
+			break
+		}
+		match := regex.FindSubmatch(tok)
+		if len(match) > 1 {
+			datum, err := deserialize(symbol, match[1])
+			if err != nil {
+				log.Printf("error: could not deserialize data payload (%+v)\n", err)
+				continue
+			}
+			T.DataStream <- datum
+		}
+	}
+	return nil
+}
+
 func (T *YahooFinanceClient) createQuery(symbol string) (*http.Request, error) {
 	// create request url string
 	u := &url.URL{
@@ -41,8 +83,7 @@ func (T *YahooFinanceClient) createQuery(symbol string) (*http.Request, error) {
 	q.Add("mktmcb", "parent.yfs_mktmcb")
 	q.Add("gencallback", "parent.yfs_gencb")
 
-	u.RawQuery = q.Encode() + "&k=a00,a50,b00,b60,c10,g00,h00,j10,l10,p20,t10,v00,z08,z09"
-	fmt.Printf("%s\n", u.String())
+	u.RawQuery = q.Encode() + common.Query
 
 	// create request
 	req, err := http.NewRequest("GET", u.String(), nil)
@@ -58,48 +99,33 @@ func (T *YahooFinanceClient) createQuery(symbol string) (*http.Request, error) {
 	return req, nil
 }
 
-func (T *YahooFinanceClient) ExecuteQuery(symbol string) (*common.Datum, error) {
-	req, err := T.createQuery(symbol)
-	if err != nil {
-		panic(err.Error())
-	}
-	resp, err := T.Client.Do(req)
-	if err != nil {
-		log.Printf("%+v\n", err)
-		return nil, err
-	}
-
-	datum, err := T.ExtractData(symbol, resp)
-	if err != nil {
-		return nil, err
-	}
-	return datum, nil
-}
-
-type YahooFinanceResponse struct {
-	Price string `json:"l10"`
-}
-
-func (T *YahooFinanceClient) ExtractData(symbol string, resp *http.Response) (*common.Datum, error) {
-	reader := bufio.NewReader(resp.Body)
-	regex := regexp.MustCompile(`yfs_.*?\((?P<json>.*?)\)`)
-	for {
-		tok, err := reader.ReadBytes('>')
-		if err != nil {
-			log.Printf("error: %+v", err)
-			break
-		}
-		match := regex.FindSubmatch(tok)
+func deserialize(symbol string, json []byte) (*common.Datum, error) {
+	extract := func(prop string) *float64 {
+		regex := regexp.MustCompile(prop + `:"(.*?)"`)
+		match := regex.FindSubmatch(json)
 		if len(match) > 1 {
-			fmt.Printf("%s\n", match[1])
+			rawVal := strings.Replace(string(match[1]), ",", "", -1)
+			val, err := strconv.ParseFloat(rawVal, 64)
+			if err != nil {
+				return nil
+			}
+			return &val
 		}
+		return nil
 	}
-
-	log.Fatalf("Done")
-	// datum := &common.Datum{
-	// 	Symbol: symbol,
-	// 	Price:  price,
-	// 	Time:   timestamp.Unix(),
-	// }
-	return nil, nil
+	d := &common.Datum{
+		Symbol:           symbol,
+		Time:             time.Now().Unix(),
+		CurrentPrice:     extract("l10"),
+		Ask:              extract("a00"),
+		Bid:              extract("b00"),
+		AskSize:          extract("a50"),
+		BidSize:          extract("b60"),
+		DayLow:           extract("g00"),
+		DayHigh:          extract("h00"),
+		MarketCap:        extract("j10"),
+		Volume:           extract("v00"),
+		PercentageChange: extract("p43"),
+	}
+	return d, nil
 }
