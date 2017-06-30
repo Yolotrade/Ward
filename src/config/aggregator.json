@@ -4,8 +4,5 @@
     "AMD",
     "MU",
     "MSFT"
-  ],
-  "clients": [
-    "yahoofinance"
   ]
 }

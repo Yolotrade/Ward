@@ -16,8 +16,7 @@ const (
 )
 
 type AggregatorConfig struct {
-	Stocks      []string `json:"stocks"`
-	ClientNames []string `json:"clients"`
+	Stocks []string `json:"stocks"`
 }
 
 type Aggregator struct {
