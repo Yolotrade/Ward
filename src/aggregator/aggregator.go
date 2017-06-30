@@ -69,21 +69,28 @@ func (T *Aggregator) Run() {
 
 func (T *Aggregator) Cron() {
 	for {
+		t := <-T.Timer.C
 		state := getMarketState()
+
 		// if a state transition occurs
 		if T.MarketState != state {
 			switch state {
 			case Pre:
 				T.closeConnections()
 			case Open:
-				T.pullData()
+				T.establishConnection()
 			case After:
 				T.closeConnections()
 			case Closed:
 				T.closeConnections()
 			}
 		}
-		<-T.Timer.C
+		// every 10 seconds if the market is open...
+		if t.Second()%10 == 0 && state == Open {
+			// hot reloading config :D
+			T.Config = loadConfigFromFile()
+			T.establishConnection()
+		}
 	}
 }
 
@@ -114,7 +121,7 @@ func (T *Aggregator) flushToFile() {
 	}
 }
 
-func (T *Aggregator) pullData() {
+func (T *Aggregator) establishConnection() {
 	for _, sym := range T.Config.Stocks {
 		err := T.Client.Connect(sym)
 		if err != nil {
