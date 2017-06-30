@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
-	"net/http"
 
 	"../common"
 )
@@ -17,7 +16,7 @@ var ClientConstructor = map[string]func(chan *common.Datum) Client{
 
 type Client interface {
 	Connect(symbol string) error
-	ExtractData(symbol string, resp *http.Response) error
+	Disconnect(symbol string)
 }
 
 type ClientConfig struct {

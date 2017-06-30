@@ -14,22 +14,30 @@ import (
 )
 
 type YahooFinanceClient struct {
-	Config     ClientConfig
-	DataStream chan *common.Datum
-	Client     *http.Client
+	Config      ClientConfig
+	DataStream  chan *common.Datum
+	Client      *http.Client
+	Connections map[string]*http.Response
 }
 
 func NewYahooFinanceClient(dataStream chan *common.Datum) Client {
 	clientConfig := loadConfigFromFile("yahoofinance")
 	c := &YahooFinanceClient{
-		Config:     clientConfig,
-		DataStream: dataStream,
-		Client:     &http.Client{},
+		Config:      clientConfig,
+		DataStream:  dataStream,
+		Client:      &http.Client{},
+		Connections: make(map[string]*http.Response),
 	}
 	return c
 }
 
 func (T *YahooFinanceClient) Connect(symbol string) error {
+	// check if connection already exists
+	if _, ok := T.Connections[symbol]; ok {
+		return nil
+	}
+
+	// construct connection url
 	req, err := T.createQuery(symbol)
 	if err != nil {
 		panic(err.Error())
@@ -40,11 +48,19 @@ func (T *YahooFinanceClient) Connect(symbol string) error {
 		return err
 	}
 
-	return T.ExtractData(symbol, resp)
+	// store connection handle
+	T.Connections[symbol] = resp
+
+	go T.ExtractData(symbol, resp)
+
+	return nil
 }
 
-type YahooFinanceResponse struct {
-	Price string `json:"l10"`
+func (T *YahooFinanceClient) Disconnect(symbol string) {
+	if resp, ok := T.Connections[symbol]; ok {
+		resp.Body.Close()
+		delete(T.Connections, symbol)
+	}
 }
 
 func (T *YahooFinanceClient) ExtractData(symbol string, resp *http.Response) error {
@@ -53,8 +69,7 @@ func (T *YahooFinanceClient) ExtractData(symbol string, resp *http.Response) err
 	for {
 		tok, err := reader.ReadBytes('>')
 		if err != nil {
-			log.Printf("error: %+v", err)
-			break
+			return err
 		}
 		match := regex.FindSubmatch(tok)
 		if len(match) > 1 {
@@ -66,7 +81,6 @@ func (T *YahooFinanceClient) ExtractData(symbol string, resp *http.Response) err
 			T.DataStream <- datum
 		}
 	}
-	return nil
 }
 
 func (T *YahooFinanceClient) createQuery(symbol string) (*http.Request, error) {
