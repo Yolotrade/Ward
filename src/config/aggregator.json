@@ -1,6 +1,9 @@
 {
   "stocks": [
-    "NVDA"
+    "NVDA",
+    "AMD",
+    "MU",
+    "MSFT"
   ],
   "clients": [
     "yahoofinance"

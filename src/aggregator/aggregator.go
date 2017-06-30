@@ -21,28 +21,20 @@ type AggregatorConfig struct {
 }
 
 type Aggregator struct {
-	Clients    []client.Client
+	Client     client.Client
 	Config     AggregatorConfig
 	FileWriter *FileWriter
-	Timer      *time.Ticker
 
 	DataStream chan *common.Datum
 }
 
 func NewAggregator() Aggregator {
-	config := loadConfigFromFile()
 	dataStream := make(chan *common.Datum)
-	clients := []client.Client{}
-	for _, clientName := range config.ClientNames {
-		clients = append(clients, client.ClientConstructor[clientName](dataStream))
-	}
-	fileWriter := NewFileWriter()
 
 	a := Aggregator{
-		Clients:    clients,
-		Config:     config,
-		FileWriter: fileWriter,
-		Timer:      time.NewTicker(interval),
+		Client:     client.NewYahooFinanceClient(dataStream),
+		Config:     loadConfigFromFile(),
+		FileWriter: NewFileWriter(),
 		DataStream: dataStream,
 	}
 	return a
@@ -61,8 +53,7 @@ func loadConfigFromFile() AggregatorConfig {
 func (T *Aggregator) Run() {
 	log.Printf("Starting aggregator\n")
 	go T.flushToFile()
-	// T.pullData()
-	T.Clients[0].ExecuteQuery("NVDA")
+	T.pullData()
 }
 
 func (T *Aggregator) flushToFile() {
@@ -75,19 +66,12 @@ func (T *Aggregator) flushToFile() {
 }
 
 func (T *Aggregator) pullData() {
-	for {
-		select {
-		case <-T.Timer.C:
-			for _, sym := range T.Config.Stocks {
-				for _, client := range T.Clients {
-					go func() {
-						datum, err := client.ExecuteQuery(sym)
-						if err == nil {
-							T.DataStream <- datum
-						}
-					}()
-				}
+	for _, sym := range T.Config.Stocks {
+		go func(s string) {
+			err := T.Client.Connect(s)
+			if err != nil {
+				log.Printf("error: connection terminated (%+v)\n", err)
 			}
-		}
+		}(sym)
 	}
 }

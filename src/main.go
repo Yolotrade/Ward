@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"./aggregator"
@@ -17,7 +18,7 @@ func main() {
 	a := aggregator.NewAggregator()
 	a.Run()
 	// log.Printf("Starting server on port %s\n", port)
-	// log.Fatal(http.ListenAndServe(port, nil))
+	log.Fatal(http.ListenAndServe(port, nil))
 }
 
 func debug(o interface{}) {
