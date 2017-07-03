@@ -36,7 +36,6 @@ func (T *YahooFinanceClient) Connect(symbol string) error {
 	if _, ok := T.Connections[symbol]; ok {
 		return nil
 	}
-
 	// construct connection url
 	req, err := T.createQuery(symbol)
 	if err != nil {

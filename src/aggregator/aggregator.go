@@ -73,6 +73,7 @@ func (T *Aggregator) Cron() {
 		state := getMarketState()
 		// if a state transition occurs
 		if T.MarketState != state {
+			T.MarketState = state
 			switch state {
 			case Pre:
 				T.closeConnections()
@@ -98,7 +99,7 @@ func getMarketState() MarketState {
 	if now.Weekday() != time.Saturday && now.Weekday() != time.Sunday {
 		if now.Hour() >= 20 {
 			return Closed
-		} else if now.Hour() >= 4 {
+		} else if now.Hour() >= 16 {
 			return After
 		} else if (now.Hour() == 9 && now.Minute() >= 30) || now.Hour() > 9 {
 			return Open
