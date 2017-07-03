@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	interval   = time.Second * 1
+	interval   = 1
 	configPath = "./src/config/aggregator.json"
 )
 const (
@@ -71,7 +71,6 @@ func (T *Aggregator) Cron() {
 	for {
 		t := <-T.Timer.C
 		state := getMarketState()
-
 		// if a state transition occurs
 		if T.MarketState != state {
 			switch state {

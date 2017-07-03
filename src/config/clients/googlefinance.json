@@ -1,6 +1,0 @@
-{
-  "name": "googlefinance",
-  "scheme": "http",
-  "host": "www.google.com",
-  "path": "finance"
-}
