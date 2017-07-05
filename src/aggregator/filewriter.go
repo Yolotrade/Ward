@@ -10,20 +10,23 @@ import (
 )
 
 type FileWriter struct {
-	Files map[string]*os.File
+	Files      map[string]*os.File
+	DateString string
 }
 
 func NewFileWriter() *FileWriter {
 	f := &FileWriter{
-		Files: make(map[string]*os.File),
+		Files:      make(map[string]*os.File),
+		DateString: dateString(),
 	}
 	return f
 }
 
 func (T *FileWriter) WriteData(datum *common.Datum) {
 	path := fmt.Sprintf("./data/ticker/%s/", datum.Symbol)
-	if _, ok := T.Files[datum.Symbol]; !ok {
-		T.Files[datum.Symbol] = openFile(path, dateString())
+	if _, ok := T.Files[datum.Symbol]; !ok || T.DateString != dateString() {
+		T.DateString = dateString()
+		T.Files[datum.Symbol] = openFile(path, T.DateString)
 	}
 	f := T.Files[datum.Symbol]
 	serialized := serialize(datum)

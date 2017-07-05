@@ -13,6 +13,7 @@ import (
 const (
 	interval   = 1
 	configPath = "./src/config/aggregator.json"
+	location   = "America/New_York"
 )
 const (
 	Pre MarketState = iota
@@ -29,24 +30,29 @@ type AggregatorConfig struct {
 }
 
 type Aggregator struct {
-	Client      client.Client
-	Config      AggregatorConfig
-	Timer       *time.Ticker
-	MarketState MarketState
-	FileWriter  *FileWriter
-	DataStream  chan *common.Datum
+	Client         client.Client
+	Config         AggregatorConfig
+	Timer          *time.Ticker
+	MarketState    MarketState
+	MarketLocation *time.Location
+	FileWriter     *FileWriter
+	DataStream     chan *common.Datum
 }
 
 func NewAggregator() Aggregator {
 	dataStream := make(chan *common.Datum)
-
+	marketLocation, err := time.LoadLocation(location)
+	if err != nil {
+		log.Fatalf("error: location isn't valid\n")
+	}
 	a := Aggregator{
-		Client:      client.NewYahooFinanceClient(dataStream),
-		Config:      loadConfigFromFile(),
-		Timer:       time.NewTicker(interval * time.Second),
-		MarketState: Null,
-		FileWriter:  NewFileWriter(),
-		DataStream:  dataStream,
+		Client:         client.NewYahooFinanceClient(dataStream),
+		Config:         loadConfigFromFile(),
+		Timer:          time.NewTicker(interval * time.Second),
+		MarketState:    Null,
+		MarketLocation: marketLocation,
+		FileWriter:     NewFileWriter(),
+		DataStream:     dataStream,
 	}
 	return a
 }
@@ -70,7 +76,7 @@ func (T *Aggregator) Run() {
 func (T *Aggregator) Cron() {
 	for {
 		t := <-T.Timer.C
-		state := getMarketState()
+		state := T.getMarketState()
 		// if a state transition occurs
 		if T.MarketState != state {
 			T.MarketState = state
@@ -94,8 +100,8 @@ func (T *Aggregator) Cron() {
 	}
 }
 
-func getMarketState() MarketState {
-	now := time.Now()
+func (T *Aggregator) getMarketState() MarketState {
+	now := time.Now().In(T.MarketLocation)
 	if now.Weekday() != time.Saturday && now.Weekday() != time.Sunday {
 		if now.Hour() >= 20 {
 			return Closed
